@@ -1,0 +1,52 @@
+expandableListView.setOnScrollListener(new AbsListView.OnScrollListener() {
+                @Override
+                public void onScrollStateChanged(AbsListView absListView, int i) {
+                }
+
+                @Override
+                public void onScroll(AbsListView view, int firstVisibleItem, int visibleItemCount, int totalItemCount) {
+
+                    if (firstVisibleItem > 0) {
+                        showDayTitle = true;
+                        dayTitleContainer.setVisibility(View.VISIBLE);
+                        dayTitleContainer.invalidate();
+                        ExpandableListView exp = (ExpandableListView) view;
+                        long getExpandableListPosition = exp.getExpandableListPosition(firstVisibleItem);
+
+			//Получение номера группы и подгруппы из flat id
+                        int getPackedPositionType = ExpandableListView.getPackedPositionType(getExpandableListPosition);
+                        int getPackedPositionGroup = ExpandableListView.getPackedPositionGroup(getExpandableListPosition);
+                        int getPackedPositionChild = ExpandableListView.getPackedPositionChild(getExpandableListPosition);
+
+                        if (getPackedPositionType == 1 || getPackedPositionType == 0) {
+                            Broadcast b = (Broadcast) exp.getExpandableListAdapter().getChild(getPackedPositionGroup, 0);
+
+                            dayTitle.setText(b.getDay());
+                        }
+                    } else {
+                        Log.e("xxx", "onScroll: GONE");
+                        dayTitleContainer.setVisibility(View.GONE);
+                        if (tabPosition == 0) {
+                            showDayTitle = false;
+                        }
+                    }
+                }
+
+
+            });
+
+//Пример вывода
+//Группа:
+/com.example.test11 D/xxx: 1st=3, packec=12884901888, type=0 group=3, child=-1
+/com.example.test11 D/xxx: 1st=3, packec=12884901888, type=0 group=3, child=-1
+/com.example.test11 D/xxx: 1st=3, packec=12884901888, type=0 group=3, child=-1
+/com.example.test11 D/xxx: 1st=4, packec=17179869184, type=0 group=4, child=-1
+
+//Элемент:
+/com.example.test11 D/xxx: 1st=5, packec=-9223372019674906624, type=1 group=4, child=0
+/com.example.test11 D/xxx: 1st=5, packec=-9223372019674906624, type=1 group=4, child=0
+/com.example.test11 D/xxx: 1st=5, packec=-9223372019674906624, type=1 group=4, child=0
+/com.example.test11 D/xxx: 1st=5, packec=-9223372019674906624, type=1 group=4, child=0
+/com.example.test11 D/xxx: 1st=6, packec=-9223372019674906623, type=1 group=4, child=1
+/com.example.test11 D/xxx: 1st=6, packec=-9223372019674906623, type=1 group=4, child=1
+/com.example.test11 D/xxx: 1st=6, packec=-9223372019674906623, type=1 group=4, child=1
