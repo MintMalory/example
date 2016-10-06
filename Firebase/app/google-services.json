@@ -1,0 +1,59 @@
+{
+  "project_info": {
+    "project_number": "806316918073",
+    "firebase_url": "https://android-tv-2016.firebaseio.com",
+    "project_id": "android-tv-2016",
+    "storage_bucket": "android-tv-2016.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:806316918073:android:3f561a5e7a40bd13",
+        "android_client_info": {
+          "package_name": "com.iurii.tv"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "806316918073-k578u3godf7rk953n331nl6mocsrqr2k.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.iurii.tv",
+            "certificate_hash": "86861C03DE3DD21D3C2639021214DE93FE6D748D"
+          }
+        },
+        {
+          "client_id": "806316918073-uo8qo20k7dai3746td6gpec04clcfq9s.apps.googleusercontent.com",
+          "client_type": 3
+        },
+        {
+          "client_id": "806316918073-9bedhe3mv2uu411hd38k91rbaeuadumr.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAwMm4DEozHjNFwIasqcuvtfTFpGLwq_bA"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 2,
+          "other_platform_oauth_client": [
+            {
+              "client_id": "806316918073-uo8qo20k7dai3746td6gpec04clcfq9s.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

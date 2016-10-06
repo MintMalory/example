@@ -1,0 +1,380 @@
+package com.iurii.tv.activities;
+
+import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.graphics.SurfaceTexture;
+import android.media.MediaPlayer;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
+import android.util.DisplayMetrics;
+import android.view.Surface;
+import android.view.TextureView;
+import android.view.View;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import com.crashlytics.android.Crashlytics;
+import com.crashlytics.android.answers.Answers;
+import com.google.firebase.iid.FirebaseInstanceId;
+import com.iurii.tv.App;
+import com.iurii.tv.R;
+import com.iurii.tv.models.NextOnlineTime;
+import com.iurii.tv.models.QualityType;
+import com.iurii.tv.models.VideoStreamURL;
+import com.iurii.tv.models.VideoType;
+import com.iurii.tv.retrofit2.RetrofitFactory;
+import com.iurii.tv.retrofit2.api.RetrofitServiceVoOrg;
+import com.iurii.tv.view.TimerView;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Date;
+
+import butterknife.Bind;
+import butterknife.ButterKnife;
+import butterknife.OnClick;
+import io.fabric.sdk.android.Fabric;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+public class MainActivity extends AppCompatActivity implements
+        TextureView.SurfaceTextureListener,
+        MediaPlayer.OnCompletionListener {
+
+    private static final String kWebsiteURL = "http://www.vo.org.ua";
+    private static final int ASPECT_RATIO_169 = 1; // What is 1? Define some enaum type
+    private static final int ASPECT_RATIO_43 = 2; // What is 2? If there are only cases use bool instead.
+    public static final String SHOW_VIDEO_LOGO = "SHOW_VIDEO_LOGO";
+
+    private TextureView textureView;
+    private boolean showVideoLogo;
+    private MediaPlayer mMediaPlayer;
+    private TimerView timer;
+    private int clicksCount = 0;
+    private long timelastClick = 0;
+    private final int timeToSecondClickForSkipVideo = 2000; // Millisecond
+    private Animation zoomAnimation;
+
+    //public OpenId openId;
+
+    @Bind(R.id.tvVersion)
+    TextView tvVersion;
+
+    @Bind(R.id.timer_view)
+    View timerView;
+
+    @Bind(R.id.button_online)
+    Button monitorBtn;
+
+    @Bind(R.id.link_button)
+    Button linkButton;
+
+    @Bind(R.id.main_layout_root)
+    RelativeLayout relativeLayoutRoot;
+
+    @Bind(R.id.linearLayoutmainbutton)
+    LinearLayout linearLayoutMainButton;
+
+    @OnClick(R.id.link_button)
+    public void onLink() {
+        if (!App.getInstance().isOnline()) {
+            Toast.makeText(this, getString(R.string.turn_on_internet), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Intent intent = new Intent(Intent.ACTION_VIEW);
+        intent.setData(Uri.parse(kWebsiteURL));
+        startActivity(intent);
+    }
+
+    @OnClick(R.id.button_online)
+    public void onOnlinePressed() {
+        String protocol;
+
+        ArrayList<VideoStreamURL> videoStreamsList = new ArrayList<>(3);
+        VideoType videoType = VideoType.ONLINE_VIDEO;
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+            protocol = "rtsp";
+            videoStreamsList.add(new VideoStreamURL(QualityType.HIGH, "rtsp://rtsp.cdn.ua/vo.org.ua_live/_definst_/online-ru-hotbird-high", videoType));
+            videoStreamsList.add(new VideoStreamURL(QualityType.LOW, "rtsp://rtsp.cdn.ua/vo.org.ua_live/_definst_/online-ru-hotbird-low", videoType));
+            videoStreamsList.add(new VideoStreamURL(QualityType.SOUND_ONLY, "rtsp://rtsp.cdn.ua/vo.org.ua_live/_definst_/online-ru-hotbird-audio", videoType));
+        } else {
+            protocol = "http";
+            videoStreamsList.add(new VideoStreamURL(QualityType.HIGH, "http://rtmp.cdn.ua/vo.org.ua_live/_definst_/online-ru-hotbird-high/playlist.m3u8", videoType));
+            videoStreamsList.add(new VideoStreamURL(QualityType.LOW, "http://rtmp.cdn.ua/vo.org.ua_live/_definst_/online-ru-hotbird-low/playlist.m3u8", videoType));
+            videoStreamsList.add(new VideoStreamURL(QualityType.SOUND_ONLY, "http://rtmp.cdn.ua/vo.org.ua_live/_definst_/online-ru-hotbird-audio/playlist.m3u8", videoType));
+        }
+        if (App.getInstance().isDebugMode) {
+            Toast.makeText(this, protocol, Toast.LENGTH_SHORT).show();
+        }
+
+        Intent intent = new Intent(this, VideoActivity.class);
+
+        Bundle b = new Bundle();
+        b.putSerializable(VideoActivity.KEY_URL, videoStreamsList);
+        intent.putExtra(VideoActivity.KEY_URL, b);
+
+        startActivity(intent);
+    }
+
+    @OnClick(R.id.button_broadcast)
+    public void onBroadcastPressed() {
+        startActivity(new Intent(this, ProgramActivity.class));
+    }
+
+    @OnClick(R.id.button_news)
+    public void onNewsPressed() {
+        startActivity(new Intent(this, NewsActivity.class));
+    }
+
+    @OnClick(R.id.button_video)
+    public void onVideoPressed() {
+        startActivity(new Intent(this, VideoGroupsActivity.class));
+    }
+
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        Fabric.with(this, new Answers(), new Crashlytics());
+        Intent intent = getIntent();
+        if (intent != null) {
+            showVideoLogo = intent.getBooleanExtra(SHOW_VIDEO_LOGO, true);
+        }
+
+        setContentView(R.layout.activity_main);
+
+        ButterKnife.bind(this);
+
+        try {
+            PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
+            tvVersion.setText(getResources().getString(R.string.version) + " " + pInfo.versionName);
+        } catch (PackageManager.NameNotFoundException e) {
+            e.printStackTrace();
+            tvVersion.setText("");
+        }
+
+        timer = new TimerView(timerView);
+
+        textureView = (TextureView) findViewById(R.id.textureView);
+        zoomAnimation = AnimationUtils.loadAnimation(MainActivity.this, R.anim.fade);
+
+        if (showVideoLogo) {
+            showVideoLogo();
+        }else{
+            hideVideoLogo();
+        }
+
+        configureTextureView();
+        String t = FirebaseInstanceId.getInstance().getToken();
+        //openId = new OpenId(this, getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        //openId.checkIntent(intent);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        //openId.checkIntent(getIntent());
+        /*
+        // Register a receiver for app restrictions changed broadcast
+        openId.registerRestrictionsReceiver();
+        */
+    }
+
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        if (App.getNextOnlineTime() < 1) {
+            loadTimer();
+        }
+
+        /*
+        // Retrieve app restrictions and take appropriate action
+        openId.getAppRestrictions();
+
+        // Register a receiver for app restrictions changed broadcast
+        openId.registerRestrictionsReceiver();
+        */
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (mMediaPlayer != null) {
+            //mMediaPlayer.release();
+            hideVideoLogo();
+        }
+        /*
+        // Unregister receiver for app restrictions changed broadcast
+        openId.unregisterRestrictionsReceiver();
+        */
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        App.setNextOnlineTime(0);
+        timer.cancelTimer();
+    }
+
+    private void configureTextureView() {
+        textureView.setSurfaceTextureListener(this);
+        textureView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (clicksCount == 1) {
+                    if ((new Date()).getTime() - timelastClick < timeToSecondClickForSkipVideo) {
+                        hideVideoLogo();
+                        clicksCount++;
+                    } else {
+                        clicksCount = 0;
+                    }
+                } else {
+                    clicksCount++;
+                    final Toast toast = Toast.makeText(getApplicationContext(), R.string.skip_logo_video, Toast.LENGTH_SHORT);
+                    toast.show();
+                    timelastClick = (new Date()).getTime();
+                }
+            }
+        });
+    }
+
+    private void showVideoLogo() {
+        timerView.setVisibility(View.GONE);
+        linkButton.setVisibility(View.GONE);
+        linearLayoutMainButton.setVisibility(View.GONE);
+        textureView.setVisibility(View.VISIBLE);
+    }
+
+    private void hideVideoLogo() {
+        timerView.setVisibility(View.VISIBLE);
+        linkButton.setVisibility(View.VISIBLE);
+        if (knownAspectRatio() == ASPECT_RATIO_169) {
+            relativeLayoutRoot.setBackgroundResource(R.drawable.logobackgroundv164);
+        } else {
+            relativeLayoutRoot.setBackgroundResource(R.drawable.logobackgroundv43);
+        }
+        linearLayoutMainButton.setVisibility(View.VISIBLE);
+        //textureView.startAnimation(zoomAnimation);
+        try {
+            if (mMediaPlayer.isPlaying()) {
+                mMediaPlayer.stop();
+            }
+            mMediaPlayer.release();
+        } catch (Exception e) {
+        }
+        textureView.setVisibility(View.GONE);
+    }
+
+    private int knownAspectRatio() {
+        DisplayMetrics metrics = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(metrics);
+        int widthScreen = metrics.widthPixels;
+        int heightScreen = metrics.heightPixels;
+
+        int coefficient = (int) ((float) heightScreen / widthScreen * 100);
+
+
+        int ratio = 0; // That was fast exit)
+        if (coefficient == 177 || coefficient > 150) {
+//            Toast.makeText(MainActivity.this, "16 : 9", Toast.LENGTH_SHORT).show();
+            ratio = ASPECT_RATIO_169;
+        } else {
+//            Toast.makeText(MainActivity.this, "4 : 3", Toast.LENGTH_SHORT).show();
+            ratio = ASPECT_RATIO_43;
+        }
+
+        return ratio;
+    }
+
+
+    private void loadTimer() {
+        RetrofitServiceVoOrg service = RetrofitFactory.getInstance(RetrofitServiceVoOrg.ENDPOINT).create(RetrofitServiceVoOrg.class);
+
+        Call<NextOnlineTime> callback = service.getTimers();
+
+        callback.enqueue(new Callback<NextOnlineTime>() {
+            @Override
+            public void onResponse(Call<NextOnlineTime> call, Response<NextOnlineTime> response) {
+                if (response.code() == 200) {
+
+                    long timeToOnline = response.body().getTimeToNextOnline();
+                    if (timeToOnline > 0) { // Check This (zero case!)
+                        App.setNextOnlineTime(response.body().getTimeToNextOnline());
+                        monitorBtn.setBackground(getResources().getDrawable(R.drawable.selector_button_channel));
+                        timer.onRefreshTimer(timeToOnline * 1000L - System.currentTimeMillis());
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Call<NextOnlineTime> call, Throwable t) {
+            }
+        });
+    }
+
+    private String getVideoPath() {
+        if (knownAspectRatio() == ASPECT_RATIO_169) {
+            return "android.resource://" + getPackageName() + "/" + R.raw.intrologo169v4;
+        } else {
+            return "android.resource://" + getPackageName() + "/" + R.raw.intrologo43v4;
+        }
+    }
+
+    @Override
+    public void onCompletion(MediaPlayer mp) {
+        hideVideoLogo();
+    }
+
+    @Override
+    public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int width, int height) {
+        Surface surface = new Surface(surfaceTexture);
+        try {
+            mMediaPlayer = new MediaPlayer();
+            mMediaPlayer.setDataSource(MainActivity.this, Uri.parse(getVideoPath()));
+            mMediaPlayer.setSurface(surface);
+            mMediaPlayer.prepare();
+            mMediaPlayer.setOnCompletionListener(this);
+            mMediaPlayer.start();
+        } catch (IllegalArgumentException e) {
+            e.printStackTrace();
+        } catch (SecurityException e) {
+            e.printStackTrace();
+        } catch (IllegalStateException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    @Override
+    public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+
+    }
+
+    @Override
+    public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+        return false;
+    }
+
+    @Override
+    public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+
+    }
+
+}
